@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -16,17 +15,9 @@ import (
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/health"
-	"google.golang.org/grpc/health/grpc_health_v1"
-	"google.golang.org/grpc/reflection"
-	"google.golang.org/protobuf/types/known/timestamppb"
-
-	taskv1 "github.com/go-kafkify/grpc-service/proto/task/v1"
 )
 
 var (
@@ -91,35 +82,11 @@ func main() {
 
 	// Start metrics server
 	go startMetricsServer()
-
-	// Setup gRPC server
-	port := getEnv("GRPC_SERVICE_PORT", "9090")
-	lis, err := net.Listen("tcp", ":"+port)
-	if err != nil {
-		logger.Fatal("Failed to listen", zap.Error(err))
-	}
-
-	grpcServer := grpc.NewServer(
-		grpc.StatsHandler(otelgrpc.NewServerHandler()),
-	)
-
-	taskv1.RegisterTaskServiceServer(grpcServer, &taskServer{})
 	
-	// Register health service
-	healthServer := health.NewServer()
-	grpc_health_v1.RegisterHealthServer(grpcServer, healthServer)
-	healthServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
+	// Start HTTP health check server
+	go startHealthServer()
 
-	// Register reflection for debugging
-	reflection.Register(grpcServer)
-
-	// Start server
-	go func() {
-		logger.Info("Starting gRPC service", zap.String("port", port))
-		if err := grpcServer.Serve(lis); err != nil {
-			logger.Fatal("Failed to serve", zap.Error(err))
-		}
-	}()
+	logger.Info("gRPC service started (metrics and background workers only)")
 
 	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
@@ -128,129 +95,27 @@ func main() {
 
 	logger.Info("Shutting down server...")
 	cancel()
-	grpcServer.GracefulStop()
 	logger.Info("Server exited")
 }
 
-func (s *taskServer) ProcessTask(ctx context.Context, req *taskv1.ProcessTaskRequest) (*taskv1.ProcessTaskResponse, error) {
-	_, span := tracer.Start(ctx, "ProcessTask")
-	defer span.End()
-
-	taskID := uuid.New().String()
-	now := time.Now()
-
-	task := Task{
-		ID:         taskID,
-		ResourceID: req.ResourceId,
-		Action:     req.Action,
-		Status:     "pending",
-		CreatedAt:  now,
-		UpdatedAt:  now,
-	}
-
-	// Start transaction
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		logger.Error("Failed to begin transaction", zap.Error(err))
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	// Insert task
-	query := `INSERT INTO tasks (id, resource_id, action, status, result, created_at, updated_at)
-			  VALUES ($1, $2, $3, $4, $5, $6, $7)`
-	_, err = tx.ExecContext(ctx, query, task.ID, task.ResourceID, task.Action, task.Status, "", task.CreatedAt, task.UpdatedAt)
-	if err != nil {
-		logger.Error("Failed to insert task", zap.Error(err))
-		return nil, err
-	}
-
-	// Insert outbox event
-	if err := insertOutboxEvent(ctx, tx, taskID, "task.process", task); err != nil {
-		logger.Error("Failed to insert outbox event", zap.Error(err))
-		return nil, err
-	}
-
-	if err := tx.Commit(); err != nil {
-		logger.Error("Failed to commit transaction", zap.Error(err))
-		return nil, err
-	}
-
-	logger.Info("Task created", zap.String("task_id", taskID))
-
-	return &taskv1.ProcessTaskResponse{
-		TaskId:    taskID,
-		Status:    "pending",
-		CreatedAt: timestamppb.New(now),
-	}, nil
-}
-
-func (s *taskServer) GetTaskStatus(ctx context.Context, req *taskv1.GetTaskStatusRequest) (*taskv1.GetTaskStatusResponse, error) {
-	_, span := tracer.Start(ctx, "GetTaskStatus")
-	defer span.End()
-
-	var task Task
-	query := `SELECT id, resource_id, action, status, result, created_at, updated_at FROM tasks WHERE id = $1`
-	err := db.QueryRowContext(ctx, query, req.TaskId).Scan(
-		&task.ID, &task.ResourceID, &task.Action, &task.Status, &task.Result, &task.CreatedAt, &task.UpdatedAt)
-
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("task not found")
-	}
-	if err != nil {
-		logger.Error("Failed to query task", zap.Error(err))
-		return nil, err
-	}
-
-	return &taskv1.GetTaskStatusResponse{
-		TaskId:     task.ID,
-		ResourceId: task.ResourceID,
-		Action:     task.Action,
-		Status:     task.Status,
-		Result:     task.Result,
-		CreatedAt:  timestamppb.New(task.CreatedAt),
-		UpdatedAt:  timestamppb.New(task.UpdatedAt),
-	}, nil
-}
-
-func (s *taskServer) ListTasks(ctx context.Context, req *taskv1.ListTasksRequest) (*taskv1.ListTasksResponse, error) {
-	_, span := tracer.Start(ctx, "ListTasks")
-	defer span.End()
-
-	pageSize := req.PageSize
-	if pageSize == 0 {
-		pageSize = 50
-	}
-
-	query := `SELECT id, resource_id, action, status, created_at, updated_at FROM tasks ORDER BY created_at DESC LIMIT $1`
-	rows, err := db.QueryContext(ctx, query, pageSize)
-	if err != nil {
-		logger.Error("Failed to query tasks", zap.Error(err))
-		return nil, err
-	}
-	defer rows.Close()
-
-	tasks := []*taskv1.Task{}
-	for rows.Next() {
-		var t Task
-		if err := rows.Scan(&t.ID, &t.ResourceID, &t.Action, &t.Status, &t.CreatedAt, &t.UpdatedAt); err != nil {
-			logger.Error("Failed to scan task", zap.Error(err))
-			continue
+func startHealthServer() {
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		if err := db.Ping(); err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			json.NewEncoder(w).Encode(map[string]string{"status": "unhealthy"})
+			return
 		}
-		tasks = append(tasks, &taskv1.Task{
-			TaskId:     t.ID,
-			ResourceId: t.ResourceID,
-			Action:     t.Action,
-			Status:     t.Status,
-			CreatedAt:  timestamppb.New(t.CreatedAt),
-			UpdatedAt:  timestamppb.New(t.UpdatedAt),
-		})
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "healthy"})
+	})
+	
+	healthPort := "8081"
+	logger.Info("Starting health server", zap.String("port", healthPort))
+	if err := http.ListenAndServe(":"+healthPort, nil); err != nil {
+		logger.Error("Health server failed", zap.Error(err))
 	}
-
-	return &taskv1.ListTasksResponse{
-		Tasks: tasks,
-	}, nil
 }
+
 
 func insertOutboxEvent(ctx context.Context, tx *sql.Tx, aggregateID, eventType string, payload interface{}) error {
 	payloadJSON, err := json.Marshal(payload)

@@ -1,6 +1,6 @@
-# Go-Kafkify: Production-Style Microservices Platform
+# Go-Kafkify: Microservices Platform
 
-A complete production-ready microservices architecture demonstrating event-driven patterns, observability, and cloud-native deployment on Kubernetes.
+A complete microservices architecture demonstrating event-driven patterns, observability, and cloud-native deployment on Kubernetes.
 
 ## 🏗️ Architecture Overview
 

@@ -4,21 +4,13 @@ FROM golang:1.21-alpine AS builder
 WORKDIR /app
 
 # Install dependencies
-RUN apk add --no-cache git protoc protobuf-dev
+RUN apk add --no-cache git
 
-# Install protoc-gen-go
-RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-RUN go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-
-# Copy go mod files
-COPY go.mod go.sum* ./
-RUN go mod download
-
-# Copy source code and proto files
+# Copy go mod files and source
 COPY . .
 
-# Generate protobuf code (if needed)
-# RUN protoc --go_out=. --go-grpc_out=. proto/task/v1/task.proto
+# Download dependencies and generate complete go.sum
+RUN go mod download && go mod tidy
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o grpc-service .
@@ -33,8 +25,8 @@ WORKDIR /root/
 # Copy the binary from builder
 COPY --from=builder /app/grpc-service .
 
-# Expose ports (gRPC and metrics)
-EXPOSE 9090 9091
+# Expose ports (health check and metrics)
+EXPOSE 8081 9091
 
 # Run the binary
 CMD ["./grpc-service"]
