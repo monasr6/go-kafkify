@@ -44,10 +44,6 @@ type OutboxEvent struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
-type taskServer struct {
-	taskv1.UnimplementedTaskServiceServer
-}
-
 func main() {
 	// Initialize logger
 	var err error

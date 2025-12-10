@@ -15,7 +15,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./migrations:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -52,7 +52,7 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     healthcheck:
-      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      test: [ "CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list" ]
       interval: 10s
       timeout: 10s
       retries: 5
@@ -89,14 +89,14 @@ services:
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.91.0
     container_name: go-kafkify-otel-collector
-    command: ["--config=/etc/otel-collector-config.yaml"]
+    command: [ "--config=/etc/otel-collector-config.yaml" ]
     volumes:
       - ./infrastructure/observability/otel-collector-config.yaml:/etc/otel-collector-config.yaml
     ports:
-      - "4317:4317"   # OTLP gRPC receiver
-      - "4318:4318"   # OTLP HTTP receiver
-      - "8888:8888"   # Prometheus metrics exposed by the collector
-      - "8889:8889"   # Prometheus exporter metrics
+      - "4317:4317" # OTLP gRPC receiver
+      - "4318:4318" # OTLP HTTP receiver
+      - "8888:8888" # Prometheus metrics exposed by the collector
+      - "8889:8889" # Prometheus exporter metrics
     networks:
       - go-kafkify-network
 
@@ -221,9 +221,9 @@ services:
       KAFKA_BROKERS: kafka:9092
       KAFKA_CONSUMER_GROUP_WORKER: python-worker-group
       OTEL_EXPORTER_OTLP_ENDPOINT: otel-collector:4317
-      METRICS_PORT: 9092
+      METRICS_PORT: 9094
     ports:
-      - "9092:9092"
+      - "9094:9094"
     networks:
       - go-kafkify-network
     restart: unless-stopped
