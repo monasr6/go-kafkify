@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/segmentio/kafka-go"
+	kafka "github.com/segmentio/kafka-go"
 	"go.uber.org/zap"
 )
 
