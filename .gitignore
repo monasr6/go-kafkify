@@ -80,3 +80,5 @@ out/
 
 # K6
 k6-results/
+.venv/
+go.sum
