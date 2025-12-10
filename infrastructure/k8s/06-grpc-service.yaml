@@ -1,0 +1,91 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: grpc-service
+  namespace: go-kafkify
+  labels:
+    app: grpc-service
+spec:
+  selector:
+    app: grpc-service
+  ports:
+    - port: 9090
+      targetPort: 9090
+      name: grpc
+    - port: 9091
+      targetPort: 9091
+      name: metrics
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grpc-service
+  namespace: go-kafkify
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: grpc-service
+  template:
+    metadata:
+      labels:
+        app: grpc-service
+    spec:
+      containers:
+        - name: grpc-service
+          image: grpc-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9090
+            - containerPort: 9091
+          env:
+            - name: GRPC_SERVICE_PORT
+              value: "9090"
+            - name: METRICS_PORT
+              value: "9091"
+            - name: GRPC_DB_HOST
+              value: "postgres"
+            - name: GRPC_DB_PORT
+              value: "5432"
+            - name: GRPC_DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: postgres-config
+                  key: POSTGRES_USER
+            - name: GRPC_DB_PASSWORD
+              valueFrom:
+                configMapKeyRef:
+                  name: postgres-config
+                  key: POSTGRES_PASSWORD
+            - name: GRPC_DB_NAME
+              value: "grpcdb"
+            - name: GRPC_DB_SSLMODE
+              value: "disable"
+            - name: KAFKA_BROKERS
+              valueFrom:
+                configMapKeyRef:
+                  name: kafka-config
+                  key: KAFKA_BROKERS
+            - name: KAFKA_CONSUMER_GROUP_GRPC
+              valueFrom:
+                configMapKeyRef:
+                  name: kafka-config
+                  key: KAFKA_CONSUMER_GROUP_GRPC
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: otel-config
+                  key: OTEL_EXPORTER_OTLP_ENDPOINT
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: otel-config
+                  key: LOG_LEVEL
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"

@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: python-worker
+  namespace: go-kafkify
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: python-worker
+  template:
+    metadata:
+      labels:
+        app: python-worker
+    spec:
+      containers:
+        - name: python-worker
+          image: python-worker:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9092
+          env:
+            - name: WORKER_DB_HOST
+              value: "postgres"
+            - name: WORKER_DB_PORT
+              value: "5432"
+            - name: WORKER_DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: postgres-config
+                  key: POSTGRES_USER
+            - name: WORKER_DB_PASSWORD
+              valueFrom:
+                configMapKeyRef:
+                  name: postgres-config
+                  key: POSTGRES_PASSWORD
+            - name: WORKER_DB_NAME
+              value: "workerdb"
+            - name: KAFKA_BROKERS
+              valueFrom:
+                configMapKeyRef:
+                  name: kafka-config
+                  key: KAFKA_BROKERS
+            - name: KAFKA_CONSUMER_GROUP_WORKER
+              valueFrom:
+                configMapKeyRef:
+                  name: kafka-config
+                  key: KAFKA_CONSUMER_GROUP_WORKER
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: otel-config
+                  key: OTEL_EXPORTER_OTLP_ENDPOINT
+            - name: METRICS_PORT
+              value: "9092"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: python-worker
+  namespace: go-kafkify
+  labels:
+    app: python-worker
+spec:
+  selector:
+    app: python-worker
+  ports:
+    - port: 9092
+      targetPort: 9092
+      name: metrics
+  type: ClusterIP

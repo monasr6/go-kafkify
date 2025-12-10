@@ -1,0 +1,41 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'go-kafkify'
+    environment: 'development'
+
+scrape_configs:
+  # REST Service metrics
+  - job_name: 'rest-service'
+    static_configs:
+      - targets: ['rest-service:8080']
+    metrics_path: '/metrics'
+
+  # gRPC Service metrics
+  - job_name: 'grpc-service'
+    static_configs:
+      - targets: ['grpc-service:9091']
+    metrics_path: '/metrics'
+
+  # Python Worker metrics
+  - job_name: 'python-worker'
+    static_configs:
+      - targets: ['python-worker:9092']
+    metrics_path: '/metrics'
+
+  # OTEL Collector metrics
+  - job_name: 'otel-collector'
+    static_configs:
+      - targets: ['otel-collector:8888']
+      - targets: ['otel-collector:8889']
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Kafka exporter (if you add it)
+  # - job_name: 'kafka'
+  #   static_configs:
+  #     - targets: ['kafka-exporter:9308']

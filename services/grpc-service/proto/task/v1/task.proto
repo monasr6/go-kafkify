@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package task.v1;
+
+option go_package = "github.com/go-kafkify/grpc-service/proto/task/v1;taskv1";
+
+import "google/protobuf/timestamp.proto";
+
+service TaskService {
+  rpc ProcessTask(ProcessTaskRequest) returns (ProcessTaskResponse);
+  rpc GetTaskStatus(GetTaskStatusRequest) returns (GetTaskStatusResponse);
+  rpc ListTasks(ListTasksRequest) returns (ListTasksResponse);
+}
+
+message ProcessTaskRequest {
+  string resource_id = 1;
+  string action = 2;
+  map<string, string> metadata = 3;
+}
+
+message ProcessTaskResponse {
+  string task_id = 1;
+  string status = 2;
+  google.protobuf.Timestamp created_at = 3;
+}
+
+message GetTaskStatusRequest {
+  string task_id = 1;
+}
+
+message GetTaskStatusResponse {
+  string task_id = 1;
+  string resource_id = 2;
+  string action = 3;
+  string status = 4;
+  string result = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+message ListTasksRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListTasksResponse {
+  repeated Task tasks = 1;
+  string next_page_token = 2;
+}
+
+message Task {
+  string task_id = 1;
+  string resource_id = 2;
+  string action = 3;
+  string status = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
+}

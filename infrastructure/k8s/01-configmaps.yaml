@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+  namespace: go-kafkify
+data:
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: postgres
+  POSTGRES_DB: postgres
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-config
+  namespace: go-kafkify
+data:
+  KAFKA_BROKERS: "kafka:9092"
+  KAFKA_CONSUMER_GROUP_GRPC: "grpc-service-group"
+  KAFKA_CONSUMER_GROUP_WORKER: "python-worker-group"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-config
+  namespace: go-kafkify
+data:
+  OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector:4317"
+  LOG_LEVEL: "info"

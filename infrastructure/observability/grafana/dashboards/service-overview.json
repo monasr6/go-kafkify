@@ -1,0 +1,74 @@
+{
+  "dashboard": {
+    "title": "Go-Kafkify Service Overview",
+    "tags": ["microservices", "overview"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "title": "Request Rate (req/s)",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "rate(http_requests_total[5m])",
+            "legendFormat": "{{service}} - {{method}} {{path}}"
+          }
+        ]
+      },
+      {
+        "title": "Request Latency (p95)",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "{{service}} p95"
+          }
+        ]
+      },
+      {
+        "title": "Kafka Messages Processed",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "rate(worker_messages_processed_total[5m])",
+            "legendFormat": "{{topic}} - {{status}}"
+          }
+        ]
+      },
+      {
+        "title": "Database Connections",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "go_sql_open_connections",
+            "legendFormat": "{{service}}"
+          }
+        ]
+      },
+      {
+        "title": "CPU Usage",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+        "targets": [
+          {
+            "expr": "rate(process_cpu_seconds_total[5m]) * 100",
+            "legendFormat": "{{service}}"
+          }
+        ]
+      },
+      {
+        "title": "Memory Usage (MB)",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+        "targets": [
+          {
+            "expr": "process_resident_memory_bytes / 1024 / 1024",
+            "legendFormat": "{{service}}"
+          }
+        ]
+      }
+    ],
+    "refresh": "10s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    }
+  }
+}
